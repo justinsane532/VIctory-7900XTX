@@ -1284,6 +1284,18 @@ fn placeholder(block: usize) -> bool {
     // (Class 3 answers with the kind of memory in that word, not the flags.)
     const MEMORY_REGION_INFORMATION_EX: u32 = 7;
     const PLACEHOLDER_RESERVATION: u32 = 1 << 8;
+    const STATUS_INVALID_INFO_CLASS: i32 = 0xC000_0003_u32 as i32;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    /// Wine answers no class 7 (`STATUS_INVALID_INFO_CLASS`), so no hole was
+    /// ever known there and each was asked about at every asking: 13,000 to
+    /// 23,000 questions a frame, all on Wine's one lock for virtual memory
+    /// (issue #59). There a plain reservation stands for a placeholder: the
+    /// title commits title memory through the runtime, which tells
+    /// ([`title_memory_allocated`]), and [`look_at_holes`] looks again.
+    static NO_CLASS: AtomicBool = AtomicBool::new(false);
+    if NO_CLASS.load(Ordering::Relaxed) {
+        return reserved(block);
+    }
     let mut region = Region::default();
     // SAFETY: the answer's room and its size.
     let status = unsafe {
@@ -1296,7 +1308,23 @@ fn placeholder(block: usize) -> bool {
             std::ptr::null_mut(),
         )
     };
+    if status == STATUS_INVALID_INFO_CLASS {
+        if !NO_CLASS.swap(true, Ordering::Relaxed) {
+            tracing::info!("no placeholder flag from the system (Wine): reservations in title memory are taken for placeholders");
+        }
+        return reserved(block);
+    }
     status >= 0 && region.region_type & PLACEHOLDER_RESERVATION != 0
+}
+
+/// Whether `block` is reserved and not committed (not free).
+fn reserved(block: usize) -> bool {
+    use windows_sys::Win32::System::Memory::{MEM_RESERVE, MEMORY_BASIC_INFORMATION, VirtualQuery};
+    // SAFETY: plain data filled in by the query.
+    let mut info: MEMORY_BASIC_INFORMATION = unsafe { std::mem::zeroed() };
+    // SAFETY: a valid out pointer of the right size.
+    let n = unsafe { VirtualQuery((block * BLOCK) as *const _, &mut info, size_of_val(&info)) };
+    n != 0 && info.State == MEM_RESERVE
 }
 
 /// The runtime gave the title memory at `[at, at + len)`, allocated or
