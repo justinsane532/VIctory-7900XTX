@@ -154,14 +154,18 @@ pub(crate) fn translation() -> [u8; 32] {
 /// can do decides the form of some programs.
 pub fn precompile(container: &[u8]) -> Result<bool, String> {
     let _ = crate::host::host();
-    let misses = MISSES.load(Ordering::Relaxed);
-    let translate = |c: &[u8]| victory_shader::emit::translate(c).map_err(|e| e.to_string());
+    // Whether this call translated (not another thread's miss meanwhile:
+    // `victory warm` and `translate --warm` count each shader by this).
+    let ran = AtomicBool::new(false);
+    let translate = |c: &[u8]| {
+        ran.store(true, Ordering::Relaxed);
+        victory_shader::emit::translate(c).map_err(|e| e.to_string())
+    };
     match CACHE.get() {
         Some(cache) => cached(cache, &build(), container, translate, true)?,
         None => translate(container)?,
     };
-    // (Counts other threads' misses too: the caller only adds them up.)
-    Ok(MISSES.load(Ordering::Relaxed) == misses)
+    Ok(!ran.load(Ordering::Relaxed))
 }
 
 /// The translation of a console shader container, from the cache when

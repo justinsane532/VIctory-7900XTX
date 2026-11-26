@@ -108,6 +108,16 @@ fn title_output() -> String {
     said.iter().map(|l| format!("  title said: {l}\n")).collect()
 }
 
+/// Called on the faulting thread first when an exception is about to end the
+/// process (the runner names what that thread was doing, e.g. the pipeline
+/// the driver's compiler was making).
+static ON_FATAL: std::sync::OnceLock<fn()> = std::sync::OnceLock::new();
+
+/// Sets what [`ON_FATAL`] calls.
+pub fn set_on_fatal_exception(note: fn()) {
+    let _ = ON_FATAL.set(note);
+}
+
 /// Installs the handlers; call once before running title code.
 pub fn report_crashes() {
     unsafe extern "system" fn filter(info: *const EXCEPTION_POINTERS) -> i32 {
@@ -562,6 +572,9 @@ unsafe fn thrown(p: &[usize]) -> String {
 unsafe fn report(what: &str, info: *const EXCEPTION_POINTERS, to_file: bool) {
     // SAFETY: the system passes valid exception pointers.
     let (record, context) = unsafe { (&*(*info).ExceptionRecord, &*(*info).ContextRecord) };
+    if to_file && let Some(note) = ON_FATAL.get() {
+        note();
+    }
     let code = record.ExceptionCode;
     let at = record.ExceptionAddress as usize;
     let p = record.ExceptionInformation;

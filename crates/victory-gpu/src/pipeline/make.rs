@@ -77,7 +77,13 @@ impl Pending {
 
     fn make(&self) {
         self.made.get_or_init(|| {
+            if super::quarantine::left_out(&self.key) {
+                return None;
+            }
             let _building = crate::timeline::span("pipeline: build a host pipeline");
+            // If the driver's compiler ends the process now, this pipeline
+            // is left out of the next runs (`quarantine`).
+            let _making = super::quarantine::making(&self.key);
             let began = Instant::now();
             let made = HostPipeline::new(&self.shaders, self.graphics.as_deref());
             super::library::note_time(&self.key, began.elapsed().as_millis() as u64);
