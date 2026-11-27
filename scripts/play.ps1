@@ -19,11 +19,15 @@ $settings = @{
     VICTORY_JOIN_COPIES = '1'; VICTORY_INDIRECT_WINDOW = '1'; VICTORY_RELAY_COPY = '1'; VICTORY_CARD_STEPS = '2'
     VICTORY_INDIRECT_BATCH = '2'; VICTORY_MAP_THREADS = '1'; VICTORY_TITLE_PRIORITIES = '0'; VICTORY_CARD_AWAKE = '1'
     VICTORY_SHOW_AFTER = '1'; VICTORY_AMBIENT = '0.8'; VICTORY_D3D12_DRED = 'light'
+    # The pipelines the title creates are written down, so `victory warm --used` has something to make (#61).
+    VICTORY_PIPELINE_BOOK = '1'
 }
 if ($Safe) {
     # Steps done on the card are off by default in the code; stage 2 removed the device in #13.
     # (VICTORY_RELAY stays at 2, the code's default: the first room's walls were missing without it.)
     $settings.VICTORY_UNDER_WIDE = '0'; $settings.VICTORY_LAND_ECHO = '0'; $settings.VICTORY_CARD_STEPS = '0'
+    # Textures wait for title memory to hold still: with no wait an RX 6900 XT hung within 19-111 lists (#51).
+    $settings.VICTORY_TEXTURE_NO_WAIT = '0'
 } else {
     $settings.VICTORY_THIN = '1'; $settings.VICTORY_JOIN_PARTS = '8'; $settings.VICTORY_UPLOAD_AHEAD = '1'
 }

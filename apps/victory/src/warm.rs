@@ -59,6 +59,14 @@ pub fn run(jobs: Option<usize>, limit: Option<usize>, again: bool, used: bool, t
         .collect();
     all.sort_by_key(|&n| (!early.contains(keys[n].as_str()), &keys[n]));
     all.truncate(limit.unwrap_or(usize::MAX));
+    if keys.is_empty() {
+        println!(
+            "no pipelines known in {}: runs write them down with VICTORY_PIPELINE_BOOK=1 (scripts\\play.ps1 sets it); play once with it, then warm",
+            dir.display()
+        );
+    } else if used && early.is_empty() {
+        println!("--used: no early-pipelines.txt yet (a run writes it as it draws); nothing to make");
+    }
     let cores = std::thread::available_parallelism().map_or(4, |n| n.get());
     let jobs = jobs.unwrap_or(cores * 2 / 3).max(1);
     println!(
